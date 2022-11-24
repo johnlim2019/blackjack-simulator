@@ -1,7 +1,6 @@
-import pandas as pd
-import numpy as np
 import random
-from typing import List, Dict
+from typing import List
+from simple_colors import *
 
 
 class Deck:
@@ -59,15 +58,21 @@ class PlayerRound:
         self.handType = "hard"
         self.value = 0
         self.betAmt = 0
+        self.isComplete = False
+        self.choices = []
 
     def toString(self):
         string = "is dealer: " + str(self.isDealer) + "\n"
+        string += "is complete: " + str(self.isComplete) + "\n"
         string += "hand type: " + self.handType + "\n"
         string += "value: " + str(self.value) + "\n"
         string += "hand: " + str(self.hand) + "\n"
         string += "bet: " + str(self.betAmt) + "\n"
-        print(string)
+        string += "choices: " + str(self.choices) + "\n"
         return string
+
+    def recordChoice(self, choice):
+        self.choices.append(choice)
 
     def bet(self, value: int):
         self.betAmt = self.betAmt + value
@@ -95,8 +100,8 @@ class PlayerRound:
             handType = "hard"
         if self.hand[0][0] == self.hand[1][0] and len(self.hand) == 2:
             handType = "pair"
-        # print(value)
-        # print(handType)
+        if value > 21:
+            self.isComplete = True
         self.value = value
         self.handType = handType
         return value, handType
@@ -179,7 +184,10 @@ class PlayerRound:
         if value < 17:
             return "h"
         else:
-            return "s"
+            if self.handType == "hard":
+                return "s"
+            else:
+                return "h"
 
     def clearHand(self):
         self.hand = []
@@ -197,6 +205,25 @@ class Round:
         self.betSpread = betSpread
         for i in range(numPlayers):
             self.players.append(PlayerRound(False))
+
+    def toString(self):
+        string = "\nstart action"
+        print(blue(string, ["bold", "underlined"]))
+        for i in range(len(self.players)):
+            string = "dealer card: " + str(self.dealerCard) + "\n"
+            string += "Player " + str(i) + ":\n"
+            string += self.players[i].toString() + "\n"
+            if i == 0:
+                print(green(string))
+            elif i == 1:
+                print(yellow(string))
+            elif i == 2:
+                print(blue(string))
+            elif i == 3:
+                print(red(string))
+        print(blue("dealer: "))
+        print(blue(self.dealer.toString()))
+        return
 
     def bet(self):
         if self.deck.getTrueCount() <= 2:
@@ -228,22 +255,107 @@ class Round:
         try:
             assert self.dealerCard != None
         except Exception as e:
-            print('dealer card is empty!')
-            raise(e)
-        playerHand = self.players[num]
-        decision = playerHand.decision(self.dealerCard)
-        if decision == 'h':
-            card = self.deck.drawCard()
-            playerHand.addCardHand(card)
-    
-        elif decision == 'd':
-            playerHand.bet(playerHand.betAmt)
+            print(red("dealer card is empty!"))
+            raise (e)
 
-        elif decision == 's':
+        playerHand = self.players[num]
+        if playerHand.isComplete == True:
             return playerHand
-        elif decision == 'split':
-            self.players.pop(num)
-            split1 = pop
-        return playerHand
-    
+
+        else:
+            decision = playerHand.decision(self.dealerCard)
+            if decision == "h":
+                playerHand.recordChoice("hit")
+                card = self.deck.drawCard()
+                playerHand.addCardHand(card)
+                playerHand.getValue()
+                return playerHand
+            elif decision == "d":
+                playerHand.recordChoice("double")
+                playerHand.bet(playerHand.betAmt)
+                card = self.deck.drawCard()
+                playerHand.addCardHand(card)
+                playerHand.getValue()
+                playerHand.isComplete = True
+                return playerHand
+            elif decision == "s":
+                playerHand.recordChoice("stand")
+                playerHand.isComplete = True
+                return playerHand
+            elif decision == "split":
+                playerHand.recordChoice("split")
+                betValue = playerHand.betAmt
+                firstCard = playerHand.hand[0]
+                secondCard = playerHand.hand[1]
+                playerHand.betAmt = 0
+                playerHand.isComplete = True
+
+                hand1 = PlayerRound(False)
+                hand1.addCardHand(firstCard)
+                card = self.deck.drawCard()
+                hand1.addCardHand(card)
+                hand1.bet(betValue)
+                hand1.getValue()
+                hand1.recordChoice("was split to")
+                self.players.append(hand1)
+
+                hand2 = PlayerRound(False)
+                hand2.addCardHand(secondCard)
+                card = self.deck.drawCard()
+                hand2.addCardHand(card)
+                hand2.bet(betValue)
+                hand2.getValue()
+                hand2.recordChoice("was split to")
+                self.players.append(hand2)
+                return playerHand
+
+            return playerHand
+
     def play(self):
+        startingLength = len(self.players)
+        for i in range(startingLength):
+            self.playIndex(i)
+
+    def dealerPlay(self):
+        self.dealer.getValue()
+        if self.dealer.isComplete == True:
+            return
+        decision = self.dealer.dealerDecision()
+        if decision == "s":
+            self.dealer.recordChoice("stand")
+            self.dealer.isComplete = True
+        elif decision == "h":
+            self.dealer.recordChoice("hit")
+            card = self.deck.drawCard()
+            self.dealer.addCardHand(card)
+            self.dealerPlay()
+
+    def roundPlay(self):
+        # print(self.deck.roundCards)
+        while True:
+            endRound = True
+            for player in self.players:
+                if player.isComplete == False:
+                    endRound = False
+            if endRound == True:
+                break
+            self.play()
+        self.dealerPlay()
+        self.toString()
+        print(self.deck.roundCards)
+        return "end round"
+
+def payout(self):
+    if self.dealer.value == 21 and len(self.dealer.hand) == 2:
+        for player in self.players:
+            self.deck.bankRoll -= player.betAmt
+    else:
+        for player in self.players:
+            if player.value
+            if player.value > self.dealer.value:
+                self.deck.bankRoll += player.betAmt
+            else:
+                self.deck.bankRoll -= player.betAmt
+
+
+    return
