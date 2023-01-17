@@ -1,27 +1,34 @@
 import random
+import pickle
+from datetime import datetime
 from typing import List
 from simple_colors import *
 
 
 class Deck:
     def __init__(self, num, bankRoll):
+        self.decksNum = num
+        self.deckCards = self.newShoe()
+        self.roundCards = []
+        self.bankRoll = bankRoll
+        self.rawCount = 0
+        self.cardsDealt = 0
+        self.decksLeft = num
+
+    def newShoe(self):
         faces = ["a", "j", "k", "q"]
         for i in range(2, 11):
             faces.append(str(i))
         suits = ["spades", "diamonds", "clubs", "hearts"]
 
         deck = []
-        for i in range(num):
+        for i in range(self.decksNum):
             for suit in suits:
                 for face in faces:
                     card = [face, suit]
                     deck.append(card)
         random.shuffle(deck)
-        self.deckCards = deck
-        self.roundCards = []
-        self.bankRoll = bankRoll
-        self.rawCount = 0
-        self.cardsDealt = 0
+        return deck
 
     def drawCard(self):
         card = self.deckCards.pop()
@@ -39,16 +46,21 @@ class Deck:
                 currentCount += 0
         self.rawCount += currentCount
         self.cardsDealt += len(cards)
-        self.roundCards = []
 
     def getTrueCount(self):
         if self.cardsDealt == 0:
             return 0
         else:
-            return round(self.rawCount / self.cardsDealt)
+            return round(self.rawCount / self.decksLeft)
 
     def endRound(self):
         self.roundCards = []
+
+    def reshuffle(self):
+        self.deckCards = self.newShoe()
+        self.rawCount = 0
+        self.cardsDealt = 0
+        self.decksLeft = self.decksNum
 
 
 class PlayerRound:
@@ -144,7 +156,6 @@ class PlayerRound:
             if self.hand[0][0] == "a":
                 return "split"
             elif self.hand[0][0] in ["10", "k", "q", "j"]:
-                print("s")
                 return "s"
             elif self.hand[0][0] == "9":
                 if dealerCard[0] in ["2", "3", "4", "5", "6", "8", "9"]:
@@ -157,12 +168,12 @@ class PlayerRound:
                 if dealerCard[0] in ["2", "3", "4", "5", "6", "7"]:
                     return "split"
                 else:
-                    "h"
+                    return "h"
             elif self.hand[0][0] == "6":
                 if dealerCard[0] in ["2", "3", "4", "5", "6"]:
                     return "split"
                 else:
-                    "h"
+                    return "h"
             elif self.hand[0][0] == "5":
                 if dealerCard[0] in ["10", "a", "j", "q", "k"]:
                     return "h"
@@ -194,15 +205,18 @@ class PlayerRound:
         self.handType = "hard"
         self.value = 0
         self.betAmt = 0
+        self.choices = []
+        self.isComplete = False
 
 
 class Round:
     def __init__(self, deck: Deck, numPlayers: int, betSpread):
-        self.dealer = PlayerRound(True)
+        self.dealer: PlayerRound = PlayerRound(True)
         self.players: List[PlayerRound] = []
         self.dealerCard = None
         self.deck = deck
         self.betSpread = betSpread
+        self.deck
         for i in range(numPlayers):
             self.players.append(PlayerRound(False))
 
@@ -250,6 +264,7 @@ class Round:
         self.dealer.getValue()
         for i in range(len(self.players)):
             self.players[i].getValue()
+        self.deck.count(self.deck.roundCards[:-1])
 
     def playIndex(self, num):
         try:
@@ -307,6 +322,8 @@ class Round:
                 hand2.getValue()
                 hand2.recordChoice("was split to")
                 self.players.append(hand2)
+
+                self.players.pop(num)
                 return playerHand
 
             return playerHand
@@ -342,20 +359,108 @@ class Round:
             self.play()
         self.dealerPlay()
         self.toString()
-        print(self.deck.roundCards)
+        # print(self.deck.roundCards)
         return "end round"
 
-def payout(self):
-    if self.dealer.value == 21 and len(self.dealer.hand) == 2:
-        for player in self.players:
-            self.deck.bankRoll -= player.betAmt
-    else:
-        for player in self.players:
-            if player.value
-            if player.value > self.dealer.value:
-                self.deck.bankRoll += player.betAmt
-            else:
+    def payout(self):
+        if self.dealer.value == 21 and len(self.dealer.hand) == 2:
+            for player in self.players:
                 self.deck.bankRoll -= player.betAmt
+        else:
+            counter = 0
+            for player in self.players:
+                counter += 1
+                if player.value > self.dealer.value or self.dealer.value > 21:
+                    print(
+                        "Player " + str(counter) + ": Won Amount " + str(player.betAmt)
+                    )
+                    self.deck.bankRoll += player.betAmt * 2
+                else:
+                    print(
+                        "Player " + str(counter) + ": Lost Amount " + str(player.betAmt)
+                    )
+            print("Balance:" + str(self.deck.bankRoll))
+
+        # count the dealer's second card
+        print("Cards Dealt: " + str(self.deck.roundCards))
+        self.deck.count(self.deck.roundCards[-1:])
+        print("Running Count: " + str(self.deck.rawCount))
+        print("Decks left: " + str(self.deck.decksLeft))
+        print("True Count: " + str(self.deck.getTrueCount()))
+        # clear the deck roundCards
+        self.deck.endRound()
+        return
 
 
-    return
+class Table:
+    def __init__(
+        self,
+        playerNum: int,
+        deckSize: int,
+        bankRoll: int,
+        betSpread: dict,
+        shuffleFraction: float,
+    ):
+        self.deck = Deck(deckSize, bankRoll)
+        self.initial_size = len(self.deck.deckCards)
+        self.shuffle_fraction = shuffleFraction
+        self.playerNum = playerNum
+        self.betSpread = betSpread
+        self.log: list[dict] = []
+        # dict keys are round #, Shoe Progression, Running Count, True Count, Decks Left, Balance, Bets, Hands
+
+    def createLog(self, round: int):
+        bets = []
+        hands = []
+        for player in self.cards.players:
+            bets.append(player.betAmt)
+            hands.append(player.hand)
+        log_dict = {
+            "Round Num": round,
+            "Shoe Progression": self.progression_fraction,
+            "Decks Left": self.cards.deck.decksLeft,
+            "Running Count": self.cards.deck.rawCount,
+            "True Count": self.cards.deck.getTrueCount(),
+            "Balance": self.cards.deck.bankRoll,
+            "Bets": bets,
+            "Hands": hands,
+        }
+        return log_dict
+
+    def checkDeck(self):
+        self.progression_fraction = len(self.deck.deckCards) / self.initial_size
+        # update the deck with the len(self.deck.deckCards) /52
+        self.cards.deck.decksLeft = round(
+            self.progression_fraction * self.initial_size / 52
+        )
+        print("Shoe progression " + str(self.progression_fraction))
+        if self.progression_fraction <= self.shuffle_fraction:
+            print(red("\nSHUFFLE DECK", ["bold"]))
+            self.deck.reshuffle()
+
+    def playRounds(self, numberRounds: int):
+        for i in range(numberRounds):
+            print(blue("\nRound " + str(i + 1), ["bold", "underlined"]))
+            self.cards = Round(self.deck, self.playerNum, self.betSpread)
+            self.cards.deal()
+            self.cards.bet()
+            self.cards.roundPlay()
+            self.cards.payout()
+            self.checkDeck()
+            self.log.append(self.createLog(i))
+
+    def outputLog(self):
+        file = open(
+            "blackjack_num_players_"
+            + str(self.playerNum)
+            + "_num_decks_"
+            + str(int(self.initial_size / 52))
+            + "_shuffle_fraction_"
+            + str(self.shuffle_fraction)
+            + "_"
+            + str(int(datetime.timestamp(datetime.now())*10**6))
+            + ".pkl",
+            "wb",
+        )
+        pickle.dump(self.log, file)
+        file.close()
