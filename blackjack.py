@@ -215,7 +215,7 @@ class Round:
         self.players: List[PlayerRound] = []
         self.dealerCard = None
         self.deck = deck
-        self.betSpread = betSpread
+        self.betSpread:dict = betSpread
         self.deck
         for i in range(numPlayers):
             self.players.append(PlayerRound(False))
@@ -240,14 +240,14 @@ class Round:
         return
 
     def bet(self):
-        if self.deck.getTrueCount() <= 2:
-            betValue = self.betSpread[2]
-        elif self.deck.getTrueCount() == 3:
-            betValue = self.betSpread[3]
-        elif self.deck.getTrueCount() == 4:
-            betValue = self.betSpread[4]
-        elif self.deck.getTrueCount() >= 5:
-            betValue = self.betSpread[5]
+        betSpread_keys = list(self.betSpread.keys())
+        for key in betSpread_keys:
+            if self.deck.getTrueCount() == key:
+                betValue = self.betSpread[key]        
+        if self.deck.getTrueCount() < betSpread_keys[0]:
+            betValue = self.betSpread[betSpread_keys[0]]
+        elif self.deck.getTrueCount() > betSpread_keys[-1]:
+            betValue = self.betSpread[betSpread_keys[-1]]
         for player in self.players:
             self.deck.bankRoll -= betValue
             player.bet(betValue)
